@@ -4,7 +4,7 @@ IMPORTANT
 このファイルは **AI（ChatGPTなど）がこのプロジェクトを理解するための仕様書**です。
 回答する前に必ずこのファイルの内容を前提にしてください。
 
-AI assistants must read all files under docs/ before answering.
+AI assistants must read all files under / before answering.
 
 ---
 
