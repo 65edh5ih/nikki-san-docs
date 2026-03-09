@@ -1,213 +1,122 @@
 # Scripts — nikki-san
 
-This document describes the purpose and behavior of the Python scripts used in the nikki-san blog system.
+このドキュメントは、現行スクリプトの用途と実行順を定義します。
 
-These scripts are responsible for converting and generating data used by Hugo.
+## Available Scripts (repo root)
 
-All scripts are executed manually from the repository root.
-
----
-
-# Script Overview
-
-The project includes three main scripts:
-
-fc2_export_to_hugo.py
-extract_comments.py
-rebuild_archives.py
-
-These scripts transform the original FC2 blog export into a structure usable by Hugo.
+1. `fc2_export_to_hugo.py`
+2. `extract_comments.py`
+3. `rebuild_archives.py`
+4. `export_posts.py`
+5. `import_posts.py`
 
 ---
 
-# fc2_export_to_hugo.py
+## 1) fc2_export_to_hugo.py
 
-Purpose:
+目的: FC2 exportテキストから Hugo 記事を生成。
 
-Convert FC2 export data into Hugo-compatible posts.
+主な出力:
+- `content/posts/<POST_ID>/index.md`
 
-Input:
-
-FC2 export file
-
-Example:
-
-~/kiam.txt
-
-Output:
-
-Hugo post directories
-
-content/posts/<POST_ID>/index.md
-
-Example:
-
-content/posts/6256/index.md
-
-Responsibilities:
-
-* parse FC2 export format
-* extract post metadata
-* convert article body to Markdown
-* maintain original FC2 entry IDs
-* preserve chronological order
-
-Typical command:
-
-```id="8o6p1n"
-python3 ./fc2_export_to_hugo.py ~/kiam.txt content/posts
-```
-
-Example output:
-
-written=6256
-skipped=1
-
-Where:
-
-written = number of posts generated
-skipped = entries ignored due to parsing issues
+備考:
+- FC2由来IDを維持
+- front matter + 本文変換
 
 ---
 
-# extract_comments.py
+## 2) extract_comments.py
 
-Purpose:
+目的: 記事Markdownのコメントセクションを抽出し、JSON化。
 
-Extract comments from the FC2 export and generate structured comment data.
+実行例:
 
-Input:
-
-Hugo post directory
-
-Example:
-
-content/posts/
-
-Output:
-
-comment data used by Hugo templates.
-
-The script associates comments with post IDs.
-
-Responsibilities:
-
-* parse comment blocks
-* attach comments to the correct post
-* generate data used by the comment display system
-
-Typical command:
-
-```id="h6jv9b"
+```bash
 python3 ./extract_comments.py content/posts comments
 ```
 
+主な出力:
+- `comments/post-<POST_ID>.json`
+- `data/recent_comments.json`
+
+副作用:
+- 記事内コメントブロックを本文から除去して更新する場合あり
+
 ---
 
-# rebuild_archives.py
+## 3) rebuild_archives.py
 
-Purpose:
+目的: アーカイブデータ/ページの再構築。
 
-Generate archive pages and metadata for the site.
+実行例:
 
-Input:
-
-post metadata from content/posts
-
-Output:
-
-data/archives/months.json
-
-content/archives/YYYY/_index.md
-
-content/archives/YYYY/MM/_index.md
-
-Responsibilities:
-
-* scan all posts
-* group posts by year and month
-* generate archive pages
-* ensure deterministic output
-
-Typical command:
-
-```id="9i5px2"
+```bash
 python3 ./rebuild_archives.py
+python3 ./rebuild_archives.py --dry-run --verbose
 ```
 
-Optional flags may include:
-
---dry-run
---verbose
-
----
-
-# Script Execution Order
-
-Typical workflow after importing or modifying posts:
-
-1. convert posts
-
-fc2_export_to_hugo.py
-
-2. extract comments
-
-extract_comments.py
-
-3. rebuild archive pages
-
-rebuild_archives.py
+主な出力:
+- `data/archives/months.json`
+- `content/archives/_index.md`
+- `content/archives/YYYY/_index.md`
+- `content/archives/YYYY/MM/_index.md`
 
 ---
 
-# Deterministic Design
+## 4) export_posts.py
 
-All scripts are designed to produce deterministic output.
+目的: `content/posts` を AI作業・移送向けテキストにエクスポート。
 
-This means:
+主な出力:
+- `export/all.txt`
+- `export/by-year/*.txt`
+- `export/by-month/*.txt`（必要時 `.partNN` 分割）
+- `export/by-size/chunk-XXXX.txt`
+- `export/manifest.json`
 
-running the scripts multiple times should produce identical results.
-
-This property is important for stable Hugo builds and predictable Git diffs.
-
----
-
-# Error Handling
-
-If a script reports errors:
-
-1. inspect the input data
-2. check the affected post ID
-3. review the parsing logic
-
-Common causes include:
-
-unexpected FC2 export format
-invalid metadata fields
-malformed HTML
+仕様:
+- エントリは `<<<HUGO_POST:ID>>>` マーカーで区切る
+- 5MB上限を基準に分割（境界は投稿単位）
 
 ---
 
-# Debugging Scripts
+## 5) import_posts.py
 
-When debugging scripts, the AI should request:
+目的: エクスポートテキストから `content/posts` を再生成。
 
-example input data
-the generated output file
-error messages
-the relevant section of the script
+実行例:
 
-Avoid modifying parsing logic without inspecting the original export data.
+```bash
+python3 ./import_posts.py export/all.txt
+python3 ./import_posts.py export/by-month --no-overwrite
+```
+
+オプション:
+- `--out <DIR>`（デフォルト `content/posts`）
+- `--no-overwrite`
+
+入力:
+- 単一 `.txt`
+- `.txt` を含むディレクトリ（再帰）
 
 ---
 
-# Maintenance Rules
+## Recommended Order
 
-When a script changes behavior:
+FC2データからサイト更新する一般順序:
 
-update this document.
+1. `fc2_export_to_hugo.py`
+2. `extract_comments.py`
+3. `rebuild_archives.py`
+4. （必要に応じて）`hugo` / `hugo server`
 
-Changes that affect site structure must also update:
+AI連携用バックアップ/復元:
 
-AI_CONTEXT.md
-ARCHITECTURE.md
+- エクスポート: `export_posts.py`
+- 復元: `import_posts.py`
+
+---
+
+## Determinism
+
+これらスクリプトは、同じ入力に対して安定した出力を返す設計を優先します。差分が大きい場合は入力ファイルや日付/front matterを先に確認してください。
