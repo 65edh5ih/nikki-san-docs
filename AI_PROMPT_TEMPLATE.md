@@ -1,121 +1,51 @@
 # AI Prompt Template — nikki-san
 
-This file contains a template prompt used when starting a new AI session.
-
-Its purpose is to ensure that AI assistants understand the project context before answering.
+以下は新規AIセッション開始時のテンプレートです。
 
 ---
 
-# Usage
+You are assisting the **nikki-san** Hugo project.
 
-When starting a new AI conversation, paste the template below.
+Before proposing any change, read:
 
----
+- `AI_CONTEXT.md`
+- `ARCHITECTURE.md`
+- `AI_DEBUG_GUIDE.md`
+- `SCRIPTS.md`
+- `REPO_MAP.md`
+- `KNOWN_ISSUES.md`
+- `AI_TASK_HISTORY.md`
 
-# Prompt Template
+Project facts (must keep):
 
-You are assisting with the **nikki-san blog project**.
+- Hugo + Stack theme (module)
+- Hosting: Cloudflare Pages
+- Posts: `content/posts/<POST_ID>/index.md`
+- Current URL format: `/posts/<POST_ID>/`
+- Legacy compatibility: `/blog-entry-XXXX.html` redirects
+- Generated data includes:
+  - `comments/post-<POST_ID>.json`
+  - `data/recent_comments.json`
+  - `data/archives/months.json`
+  - `content/archives/**`
 
-Before answering, read the following documentation:
+Behavior rules:
 
-AI_CONTEXT
-docs/AI_CONTEXT.md
-
-ARCHITECTURE
-docs/ARCHITECTURE.md
-
-DEBUG RULES
-docs/AI_DEBUG_GUIDE.md
-
-SCRIPTS
-docs/SCRIPTS.md
-
-REPOSITORY MAP
-docs/REPO_MAP.md
-
-KNOWN ISSUES
-docs/KNOWN_ISSUES.md
-
-TASK HISTORY
-docs/AI_TASK_HISTORY.md
-
-These documents describe the system architecture and debugging rules.
-
-You must follow the debugging rules defined in `AI_DEBUG_GUIDE.md`.
-
-In particular:
-
-Do not guess.
-Request files or command outputs when necessary.
-Avoid generic advice unrelated to Hugo or Cloudflare Pages.
-
----
-
-# Project Summary
-
-This project is a static blog migrated from FC2 Blog.
-
-Stack:
-
-Hugo
-Hugo theme Stack
-Cloudflare Pages
-GitHub repository
-Python migration scripts
-
-Post structure:
-
-content/posts/<POST_ID>/index.md
-
-URL structure:
-
-/posts/<POST_ID>/
-
-Legacy URLs:
-
-/blog-entry-XXXX.html
-
-Redirect rules preserve compatibility.
-
----
-
-# When Debugging
-
-Before proposing a solution, confirm:
-
-relevant files
-error messages
-command outputs
-directory structure
-
-Avoid speculative debugging.
-
----
-
-# Task
-
-Now help with the following task:
-
-[Describe the current problem here]
-
----
-
-# Example
+1. Do not guess without file/command evidence.
+2. Prefer minimal, architecture-compatible changes.
+3. If issue is in generated outputs, check source scripts first:
+   - `extract_comments.py`
+   - `rebuild_archives.py`
+4. Do not propose stack changes unrelated to Hugo/Cloudflare Pages.
 
 Task:
 
-Hugo build fails with a JSON template rendering error.
+[Describe the current issue or request here]
 
-Error message:
+Expected output:
 
-[Paste error message]
-
-Relevant files:
-
-[Paste template file]
+- Root cause analysis with evidence
+- Minimal patch proposal
+- Exact verification commands
 
 ---
-
-# Goal
-
-The goal is to obtain **accurate and architecture-aware**
