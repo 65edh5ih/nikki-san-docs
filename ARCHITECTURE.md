@@ -1,278 +1,71 @@
 # Architecture — nikki-san
 
-This document describes the **technical architecture of the nikki-san blog system**.  
-It complements `AI_CONTEXT.md` by explaining **how components interact**.
+## 1. System
 
----
+このシステムは Hugo ベースの静的ブログです。データ源は FC2 由来で、GitHub 管理 + Cloudflare Pages デプロイで運用します。
 
-# System Overview
+フロー:
 
-The system is a **static blog platform built using Hugo** and deployed via **Cloudflare Pages**.
+1. FC2データ取り込み / 変換
+2. `content/posts/<ID>/index.md` を正本として管理
+3. 補助データ（comments / archives）をスクリプト生成
+4. Hugo build
+5. Cloudflare Pages 配信
 
-Architecture flow:
+## 2. Content Model
 
-```text
-FC2 export
-↓
-conversion scripts
-↓
-Hugo content structure
-↓
-Hugo static site generation
-↓
-GitHub repository
-↓
-Cloudflare Pages deployment
-↓
-public website
-```
+- Posts: `content/posts/<POST_ID>/index.md`
+- Archives pages: `content/archives/YYYY/MM/_index.md` など
+- Comments data: `comments/post-<POST_ID>.json`
+- Data files:
+  - `data/archives/months.json`
+  - `data/recent_comments.json`
 
----
+`content/archives/*` は基本的に `rebuild_archives.py` の生成対象です。
 
-# Theme Delivery Layer
+## 3. Script Layer
 
-The Stack theme is integrated through **Hugo Modules**.
+### fc2_export_to_hugo.py
+FC2エクスポートテキストを解析し、Hugo記事を生成。
 
-Example configuration:
+### extract_comments.py
+記事Markdown内の「## コメント」セクションを抽出し、
+- `comments/post-<id>.json`
+- `data/recent_comments.json`
+を更新。必要に応じて記事本文からコメント節を除去。
 
-```toml
-[module]
-  [[module.imports]]
-    path = "github.com/CaiJimmy/hugo-theme-stack/v3"
-```
-
-Consequences:
-- the repository may have **no local `themes/` directory**
-- upstream theme files are resolved through the Hugo module cache
-- customization should be done through local overrides under `layouts/`, `assets/`, and related project directories
-
-This distinction is important when debugging file paths or advising where to edit theme behavior.
-
----
-
-# Source Data
-
-Original platform: FC2 Blog  
-Export source file: `kiam.txt`
-
-This file contains:
-- blog entries
-- metadata
-- comments
-
----
-
-# Migration Layer
-
-Migration is performed using custom Python scripts.
-
-## `fc2_export_to_hugo.py`
-
-Purpose: Convert FC2 export data into Hugo-compatible content.
-
-Output structure:
-
-```text
-content/posts/<POST_ID>/index.md
-```
-
-Responsibilities:
-- parse FC2 export format
-- extract post metadata
-- convert body to Markdown
-- maintain original post IDs
-
-## `extract_comments.py`
-
-Purpose: Extract comments from the FC2 export.
-
-Responsibilities:
-- parse comment sections
-- associate comments with post IDs
-- generate comment data used by Hugo
-
-The comment data is later rendered in templates.
-
----
-
-# Content Layer
-
-Hugo content directory:
-
-```text
-content/posts/
-```
-
-Each post is structured as:
-
-```text
-content/posts/<POST_ID>/index.md
-```
-
-Example:
-
-```text
-content/posts/6256/index.md
-```
-
-Advantages of this structure:
-- stable permalink
-- easy asset management
-- consistent mapping from FC2 entry ID
-
----
-
-# Archive Generation
-
-Archives are generated using a script.
-
-Script:
-- `rebuild_archives.py`
-
-Generated files:
+### rebuild_archives.py
+`content/posts/**/index.md` の front matter 日付を走査し、
 - `data/archives/months.json`
-- `content/archives/YYYY/_index.md`
-- `content/archives/YYYY/MM/_index.md`
+- `content/archives/` ツリー
+を再構築。`--dry-run`, `--verbose` あり。
 
-The generation process is deterministic.
+### export_posts.py / import_posts.py
+AI連携・バックアップ用途のテキスト形式エクスポート/インポート。
 
-The script reads post metadata and builds:
-- year archives
-- month archives
+- export: `export/` 配下に `all.txt`, `by-year`, `by-month`, `by-size`, `manifest.json`
+- import: `<<<HUGO_POST:ID>>>` 区切り形式から `content/posts` 復元
 
----
+## 4. Theme / Rendering Layer
 
-# Theme Override Layer
+- Theme module: Stack v3
+- Override: `layouts/` 配下
+- Styling:
+  - `assets/scss/*.scss`
+  - `static/css/prism.css`
+- Scripts:
+  - `static/js/prism.js`
+  - `assets/js/comments.js`, `assets/js/comments-count.js`
 
-Theme used: `hugo-theme-stack`
+## 5. Deployment Layer
 
-Theme customization includes:
-- layout overrides
-- CSS customization
-- additional partial templates
+- GitHub push
+- Cloudflare Pages build
+- 公開 (`https://nikki-san.com/`)
 
-Overrides may exist under:
-- `layouts/_default/`
-- `layouts/_partials/`
-- `layouts/partials/`
+## 6. Key Constraints
 
-Important note:
-- For the current upstream Stack theme, some theme partials live under underscore-prefixed paths such as `layouts/_partials/footer/`.
-- AI must not assume that the correct override path is always `layouts/partials/...` without checking the active theme structure.
-
-A concrete example discovered in this project:
-- footer rendering may be attached manually inside custom page templates by calling `{{ partial "footer/footer" . }}`
-- therefore, not every page necessarily inherits the footer automatically from a global base template
-
----
-
-# Styling Layer
-
-Custom CSS is applied to reproduce the original FC2 blog visual style.
-
-Typical modifications include:
-- blockquote appearance
-- typography adjustments
-- card layout spacing
-- responsive tweaks
-- footer styling overrides
-
-Custom CSS may exist in:
-- `assets/scss/`
-- `static/css/`
-
-When debugging visual behavior, inspect computed styles rather than assuming whether a style comes from the theme or from custom SCSS.
-
----
-
-# Rendering Layer
-
-Hugo generates the final static site.
-
-Command used locally:
-
-```bash
-hugo server --disableFastRender
-```
-
-Output directory:
-
-```text
-public/
-```
-
-The static site includes:
-- HTML
-- CSS
-- JS
-- images
-
----
-
-# Deployment Layer
-
-Deployment pipeline:
-
-```text
-GitHub repository
-↓
-Cloudflare Pages build
-↓
-public site
-```
-
-Cloudflare Pages automatically rebuilds the site when the repository changes.
-
----
-
-# URL Compatibility
-
-Legacy FC2 URLs:
-
-```text
-/blog-entry-XXXX.html
-```
-
-New URLs:
-
-```text
-/posts/<POST_ID>/
-```
-
-Redirect rules ensure compatibility with old links.
-
----
-
-# Additional Components
-
-The site includes additional features:
-- syntax highlighting (Prism.js)
-- Flickr embeds
-- Google Maps embeds
-- comment display templates
-- latest comments page
-
-These features are integrated through Hugo templates, generated data, or Markdown content.
-
----
-
-# Design Principles
-
-The architecture follows these principles:
-- deterministic generation
-- stable URL structure
-- minimal runtime dependencies
-- long-term maintainability
-- local overrides instead of editing upstream theme sources directly
-
----
-
-# When Updating Architecture
-
-If the architecture changes significantly, update:
-- `AI_CONTEXT.md`
-- `ARCHITECTURE.md`
-- `REPO_MAP.md`
-- `KNOWN_ISSUES.md`
-
-so that future AI sessions use the current structure rather than outdated assumptions.
+- URL安定性（`/posts/<ID>/`）
+- 旧FC2リンク互換（リダイレクト）
+- 生成処理の再現性（deterministic）
+- テーマ改変は原則 `layouts/` オーバーライドで実施
